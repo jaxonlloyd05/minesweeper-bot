@@ -1,13 +1,14 @@
 import random
+from pathlib import Path
 
 import numpy as np
 import torch
 from torch.nn import functional as F
 
-from src.game import UNKNOWN
-from src.learning.config import DQNConfig
-from src.learning.model import DQNNetwork
-from src.learning.replay import ReplayMemory
+from game import UNKNOWN
+from learning.config import DQNConfig
+from learning.model import DQNNetwork
+from learning.replay import ReplayMemory
 
 
 class DQNAgent:
@@ -140,6 +141,8 @@ class DQNAgent:
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
     def save(self, path):
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
                 'config': self.config.__dict__,
@@ -163,7 +166,35 @@ class DQNAgent:
         agent.target_net.load_state_dict(checkpoint['target_net'])
         agent.optimizer.load_state_dict(checkpoint['optimizer'])
         agent.steps_done = checkpoint.get('steps_done', 0)
+        agent._move_optimizer_state_to_device()
         return agent
+
+    def update_training_config(
+        self,
+        learning_rate=None,
+        gamma=None,
+        batch_size=None,
+        min_replay_size=None,
+        max_steps_per_episode=None,
+    ):
+        if learning_rate is not None:
+            self.config.learning_rate = learning_rate
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = learning_rate
+        if gamma is not None:
+            self.config.gamma = gamma
+        if batch_size is not None:
+            self.config.batch_size = batch_size
+        if min_replay_size is not None:
+            self.config.min_replay_size = min_replay_size
+        if max_steps_per_episode is not None:
+            self.config.max_steps_per_episode = max_steps_per_episode
+
+    def _move_optimizer_state_to_device(self):
+        for state in self.optimizer.state.values():
+            for key, value in state.items():
+                if torch.is_tensor(value):
+                    state[key] = value.to(self.device)
 
     @property
     def epsilon(self):

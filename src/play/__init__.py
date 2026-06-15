@@ -1,4 +1,4 @@
-from src.learning import (
+from learning import (
     DQNAgent,
     DQNConfig,
     DQNNetwork,

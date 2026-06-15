@@ -1,9 +1,10 @@
 import numpy as np
 
-from src.game import MinesweeperEnv
-from src.learning.agent import DQNAgent
-from src.learning.config import DQNConfig
-from src.learning.replay import Transition
+from game import MinesweeperEnv
+from learning.agent import DQNAgent
+from learning.config import DQNConfig
+from learning.diagnostics import TrainingDiagnostics
+from learning.replay import Transition
 
 
 class DQNTrainer:
@@ -17,22 +18,29 @@ class DQNTrainer:
         self.agent = agent or DQNAgent(self.config)
         self.history = []
 
-    def train(self, episodes, checkpoint_path=None, checkpoint_every=None, log_every=10):
+    def train(
+        self,
+        episodes,
+        checkpoint_path=None,
+        checkpoint_every=None,
+        log_every=10,
+        metrics_path=None,
+    ):
+        diagnostics = TrainingDiagnostics(
+            csv_path=metrics_path,
+            log_every=log_every,
+            window=log_every or 10,
+        )
+
         for episode in range(1, episodes + 1):
             summary = self.train_episode()
             self.history.append(summary)
-
-            if log_every and episode % log_every == 0:
-                avg_reward = self._average_recent('reward', log_every)
-                avg_loss = self._average_recent('loss', log_every)
-                win_rate = self._average_recent('won', log_every)
-                print(
-                    f'episode={episode} '
-                    f'avg_reward={avg_reward:.2f} '
-                    f'avg_loss={avg_loss:.4f} '
-                    f'win_rate={win_rate:.2f} '
-                    f'epsilon={self.agent.epsilon:.3f}'
-                )
+            diagnostics.record(
+                episode=episode,
+                summary=summary,
+                history=self.history,
+                replay_size=len(self.agent.memory),
+            )
 
             should_checkpoint = (
                 checkpoint_path
@@ -87,14 +95,13 @@ class DQNTrainer:
             'hit_mine': bool(info.get('hit_mine', False)),
             'loss': float(np.mean(losses)) if losses else 0.0,
             'epsilon': self.agent.epsilon,
+            'safe_moves': max(0, step - int(info.get('hit_mine', False))),
+            'safe_click_rate': (
+                max(0, step - int(info.get('hit_mine', False))) / step
+                if step
+                else 0.0
+            ),
         }
-
-    def _average_recent(self, key, window):
-        recent = self.history[-window:]
-        if not recent:
-            return 0.0
-        return float(np.mean([item[key] for item in recent]))
-
 
 def train_dqn(episodes=1000, checkpoint_path='minesweeper_dqn.pt', config=None):
     trainer = DQNTrainer(config=config)

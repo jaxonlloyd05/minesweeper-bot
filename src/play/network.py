@@ -1,5 +1,5 @@
-from src.game import MinesweeperEnv, UNKNOWN
-from src.learning import (
+from game import MinesweeperEnv, UNKNOWN
+from learning import (
     DQNAgent,
     DQNConfig,
     DQNNetwork,
